@@ -769,13 +769,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 791930546}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.062028445, y: -0.0026310773, z: 0.00016351705, w: 0.99807096}
-  m_LocalPosition: {x: 12.55, y: 1.12, z: -18.05}
+  m_LocalRotation: {x: 0.18738066, y: -0.0025887226, z: 0.0004938252, w: 0.9822839}
+  m_LocalPosition: {x: 12.55, y: 1.74, z: -16.6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 20.539, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 21.6, y: -0.302, z: 0}
 --- !u!114 &791930550
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -866,6 +866,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   target: {fileID: 596326494}
   smoothSpeed: 5
+  offset: {x: 1.83, y: 1.58, z: -3.76}
 --- !u!1 &845833617
 GameObject:
   m_ObjectHideFlags: 0
