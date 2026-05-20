@@ -28,7 +28,7 @@ namespace PlantRoguelike.Grid
         public Vector3 Origin => origin;
 
         public event Action<Vector2Int, IGridPlaceable> OnPlaced;
-        public event Action<Vector2Int>                  OnRemoved;
+        public event Action<Vector2Int, IGridPlaceable> OnRemoved;
 
         private void Awake()
         {
@@ -179,7 +179,7 @@ namespace PlantRoguelike.Grid
 
             occupants.Remove(id);
             item.OnRemoved();
-            OnRemoved?.Invoke(origin);
+            OnRemoved?.Invoke(origin, item);
             return true;
         }
 
