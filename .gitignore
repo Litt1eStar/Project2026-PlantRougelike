@@ -104,3 +104,19 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# AI agent tooling
+.claude/
+.agents/
+.cursor/
+.aider*
+.continue/
+.codeium/
+.windsurf/
+.github/copilot/
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+AGENTS.md
+.mcp.json
+.claude.json
