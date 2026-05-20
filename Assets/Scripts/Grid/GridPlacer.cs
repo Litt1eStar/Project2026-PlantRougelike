@@ -12,11 +12,20 @@ namespace PlantRoguelike.Grid
         [SerializeField] private Color validColor   = new Color(0.3f, 1f, 0.3f, 0.5f);
         [SerializeField] private Color invalidColor = new Color(1f, 0.3f, 0.3f, 0.5f);
 
+        [Header("Selection Box")]
+        [SerializeField] private Color selectionValidColor   = new Color(0.3f, 0.7f, 1f, 0.35f);
+        [SerializeField] private Color selectionInvalidColor = new Color(1f, 0.3f, 0.3f, 0.35f);
+        [SerializeField] private float selectionYOffset      = 0.02f;
+
         private GridController controller;
         private GameObject     ghost;
         private Material       ghostMaterial;
         private PlaceableData  ghostFor;
-        private Vector2Int?    lastDragCell;
+
+        private Vector2Int? dragStart;
+
+        private GameObject selectionQuad;
+        private Material   selectionMaterial;
 
         private void Awake()
         {
@@ -27,6 +36,7 @@ namespace PlantRoguelike.Grid
         private void OnDisable()
         {
             DestroyGhost();
+            DestroySelectionQuad();
         }
 
         private void Update()
@@ -34,10 +44,74 @@ namespace PlantRoguelike.Grid
             if (controller == null || aimCamera == null || currentPlaceable == null)
             {
                 if (ghost != null) ghost.SetActive(false);
+                HideSelectionQuad();
                 return;
             }
 
-            if (!TryGetHoveredCell(out var coord))
+            bool hasCell = TryGetHoveredCell(out var coord);
+            bool isOneByOne = currentPlaceable.size == Vector2Int.one;
+
+            // Right-click remove (only when not dragging).
+            if (!dragStart.HasValue && hasCell && Input.GetMouseButtonDown(1))
+                controller.Remove(coord);
+
+            if (isOneByOne)
+            {
+                UpdateOneByOne(hasCell, coord);
+            }
+            else
+            {
+                UpdateMultiCell(hasCell, coord);
+            }
+        }
+
+        private void UpdateOneByOne(bool hasCell, Vector2Int coord)
+        {
+            if (Input.GetMouseButtonDown(0) && hasCell)
+            {
+                dragStart = coord;
+            }
+
+            if (dragStart.HasValue && Input.GetMouseButton(0))
+            {
+                if (ghost != null) ghost.SetActive(false);
+
+                var end = hasCell ? coord : dragStart.Value;
+                var (min, max) = RectBounds(dragStart.Value, end);
+                bool allFree = IsRectAllPlaceable(min, max);
+                ShowSelectionQuad(min, max, allFree);
+                return;
+            }
+
+            if (dragStart.HasValue && Input.GetMouseButtonUp(0))
+            {
+                var end = hasCell ? coord : dragStart.Value;
+                var (min, max) = RectBounds(dragStart.Value, end);
+                if (IsRectAllPlaceable(min, max))
+                    PlaceRect(min, max);
+                dragStart = null;
+                HideSelectionQuad();
+            }
+
+            // Not dragging: show single-cell ghost.
+            if (!dragStart.HasValue)
+            {
+                if (!hasCell)
+                {
+                    if (ghost != null) ghost.SetActive(false);
+                    return;
+                }
+                EnsureGhost();
+                UpdateGhost(coord, controller.CanPlace(currentPlaceable, coord));
+            }
+        }
+
+        private void UpdateMultiCell(bool hasCell, Vector2Int coord)
+        {
+            HideSelectionQuad();
+            dragStart = null;
+
+            if (!hasCell)
             {
                 if (ghost != null) ghost.SetActive(false);
                 return;
@@ -47,44 +121,32 @@ namespace PlantRoguelike.Grid
             bool canPlace = controller.CanPlace(currentPlaceable, coord);
             UpdateGhost(coord, canPlace);
 
-            bool isOneByOne = currentPlaceable.size == Vector2Int.one;
-
-            if (Input.GetMouseButtonDown(0))
-            {
-                if (canPlace) Place(coord);
-                if (isOneByOne) lastDragCell = coord;
-            }
-            else if (isOneByOne && Input.GetMouseButton(0) && lastDragCell.HasValue && coord != lastDragCell.Value)
-            {
-                PaintLine(lastDragCell.Value, coord);
-                lastDragCell = coord;
-            }
-
-            if (Input.GetMouseButtonUp(0))
-                lastDragCell = null;
-
-            if (Input.GetMouseButtonDown(1))
-                controller.Remove(coord);
+            if (Input.GetMouseButtonDown(0) && canPlace)
+                Place(coord);
         }
 
-        // Bresenham line; places at every cell along the line, EXCLUDING the
-        // starting cell (already placed on the previous frame or mouse-down).
-        // Cells where CanPlace fails are skipped silently.
-        private void PaintLine(Vector2Int from, Vector2Int to)
+        private static (Vector2Int min, Vector2Int max) RectBounds(Vector2Int a, Vector2Int b)
         {
-            int x0 = from.x, y0 = from.y;
-            int x1 = to.x,   y1 = to.y;
-            int dx =  Mathf.Abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-            int dy = -Mathf.Abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-            int err = dx + dy;
+            var min = new Vector2Int(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y));
+            var max = new Vector2Int(Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
+            return (min, max);
+        }
 
-            while (x0 != x1 || y0 != y1)
+        private bool IsRectAllPlaceable(Vector2Int min, Vector2Int max)
+        {
+            for (int y = min.y; y <= max.y; y++)
+            for (int x = min.x; x <= max.x; x++)
+                if (!controller.CanPlace(currentPlaceable, new Vector2Int(x, y)))
+                    return false;
+            return true;
+        }
+
+        private void PlaceRect(Vector2Int min, Vector2Int max)
+        {
+            for (int y = min.y; y <= max.y; y++)
+            for (int x = min.x; x <= max.x; x++)
             {
-                int e2 = 2 * err;
-                if (e2 >= dy) { err += dy; x0 += sx; }
-                if (e2 <= dx) { err += dx; y0 += sy; }
-
-                var c = new Vector2Int(x0, y0);
+                var c = new Vector2Int(x, y);
                 if (controller.CanPlace(currentPlaceable, c))
                     Place(c);
             }
@@ -184,6 +246,89 @@ namespace PlantRoguelike.Grid
                 ghostMaterial = null;
             }
             ghostFor = null;
+        }
+
+        // ---------- Selection quad ----------
+
+        private void EnsureSelectionQuad()
+        {
+            if (selectionQuad != null) return;
+
+            selectionMaterial = CreateGhostMaterial();
+
+            selectionQuad = new GameObject("PlacementSelectionQuad");
+            selectionQuad.hideFlags = HideFlags.HideAndDontSave;
+
+            var mf = selectionQuad.AddComponent<MeshFilter>();
+            var mr = selectionQuad.AddComponent<MeshRenderer>();
+            mf.sharedMesh = CreateXZQuadMesh();
+            mr.sharedMaterial = selectionMaterial;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            mr.receiveShadows = false;
+        }
+
+        private void ShowSelectionQuad(Vector2Int min, Vector2Int max, bool valid)
+        {
+            EnsureSelectionQuad();
+
+            float cs = controller.CellSize;
+            var origin = controller.Origin;
+            float w = (max.x - min.x + 1) * cs;
+            float h = (max.y - min.y + 1) * cs;
+
+            selectionQuad.transform.position = new Vector3(
+                origin.x + min.x * cs,
+                origin.y + selectionYOffset,
+                origin.z + min.y * cs);
+            selectionQuad.transform.localScale = new Vector3(w, 1f, h);
+
+            selectionMaterial.SetColor("_BaseColor", valid ? selectionValidColor : selectionInvalidColor);
+            selectionQuad.SetActive(true);
+        }
+
+        private void HideSelectionQuad()
+        {
+            if (selectionQuad != null) selectionQuad.SetActive(false);
+        }
+
+        private void DestroySelectionQuad()
+        {
+            if (selectionQuad != null)
+            {
+                if (Application.isPlaying) Destroy(selectionQuad);
+                else DestroyImmediate(selectionQuad);
+                selectionQuad = null;
+            }
+            if (selectionMaterial != null)
+            {
+                if (Application.isPlaying) Destroy(selectionMaterial);
+                else DestroyImmediate(selectionMaterial);
+                selectionMaterial = null;
+            }
+        }
+
+        // Unit quad on XZ plane spanning [0,0]..[1,1], normal +Y.
+        private static Mesh CreateXZQuadMesh()
+        {
+            var mesh = new Mesh { name = "PlacementSelectionQuad" };
+            mesh.vertices = new[]
+            {
+                new Vector3(0f, 0f, 0f),
+                new Vector3(1f, 0f, 0f),
+                new Vector3(1f, 0f, 1f),
+                new Vector3(0f, 0f, 1f),
+            };
+            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+            mesh.normals = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+            mesh.uv = new[]
+            {
+                new Vector2(0f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(1f, 1f),
+                new Vector2(0f, 1f),
+            };
+            mesh.RecalculateBounds();
+            return mesh;
         }
     }
 }
