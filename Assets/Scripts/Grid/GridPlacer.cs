@@ -19,12 +19,18 @@ namespace PlantRoguelike.Grid
         [SerializeField] private Color removeInvalidColor = new Color(0.5f, 0.5f, 0.5f, 0.25f);
         [SerializeField] private float marqueeYOffset     = 0.02f;
 
+        [Header("Move")]
+        [SerializeField] private float doubleClickThreshold = 0.3f;
+
         private GridController    controller;
         private PlacementGhost    ghost;
         private MarqueeVisualizer marquee;
 
-        private Vector2Int? placeDragStart;
-        private Vector2Int? removeDragStart;
+        private Vector2Int?   placeDragStart;
+        private Vector2Int?   removeDragStart;
+        private IGridPlaceable selectedItem;
+        private float         lastLeftDownTime = -999f;
+        private Vector2Int    lastLeftDownCell;
 
         private void Awake()
         {
@@ -37,13 +43,18 @@ namespace PlantRoguelike.Grid
 
         private void OnDisable()
         {
+            if (selectedItem != null)
+            {
+                selectedItem.SetVisualHidden(false);
+                selectedItem = null;
+            }
             ghost?.Dispose();
             marquee?.Dispose();
         }
 
         private void Update()
         {
-            if (controller == null || aimCamera == null || currentPlaceable == null)
+            if (controller == null || aimCamera == null)
             {
                 ghost?.Hide();
                 marquee?.Hide();
@@ -52,8 +63,22 @@ namespace PlantRoguelike.Grid
 
             bool hasCell = TryGetHoveredCell(out var coord);
 
-            // Right-drag (remove) takes priority over left-drag (place) if both
-            // could be active. Suppresses ghost while running.
+            // Move (MMB select-then-place) takes top priority. While carrying an
+            // item, all other inputs are suppressed.
+            if (UpdateMove(hasCell, coord))
+            {
+                marquee.Hide();
+                return;
+            }
+
+            if (currentPlaceable == null)
+            {
+                ghost.Hide();
+                marquee.Hide();
+                return;
+            }
+
+            // Right-drag (remove) takes priority over left-drag (place).
             if (placeDragStart == null && UpdateRemoveDrag(hasCell, coord))
             {
                 ghost.Hide();
@@ -64,6 +89,75 @@ namespace PlantRoguelike.Grid
                 UpdatePlaceDrag(hasCell, coord);
             else
                 UpdateSingleClickPlace(hasCell, coord);
+        }
+
+        // Returns true if a move flow is active this frame (pick or carrying).
+        // Pickup = double-left-click on an occupied cell.
+        // Drop   = single-left-click while carrying.
+        // Cancel = right-click while carrying. Object stays at its original cell
+        //          and its PlaceableData is loaded as currentPlaceable so the
+        //          user can keep placing more of the same kind.
+        private bool UpdateMove(bool hasCell, Vector2Int coord)
+        {
+            if (selectedItem != null && Input.GetMouseButtonDown(1))
+            {
+                currentPlaceable = selectedItem.Data;
+                selectedItem.SetVisualHidden(false);
+                selectedItem = null;
+                ghost.Hide();
+                return true;
+            }
+
+            bool leftDown = Input.GetMouseButtonDown(0);
+
+            if (selectedItem != null)
+            {
+                if (hasCell)
+                {
+                    bool canMove = controller.CanMove(selectedItem, coord);
+                    ghost.Show(selectedItem.Data, coord, canMove);
+                }
+                else
+                {
+                    ghost.Hide();
+                }
+
+                if (leftDown)
+                {
+                    if (hasCell) controller.TryMove(selectedItem, coord);
+                    selectedItem.SetVisualHidden(false);
+                    selectedItem = null;
+                    ghost.Hide();
+                    // Consume the click so place-drag doesn't pick it up.
+                    lastLeftDownTime = -999f;
+                }
+                return true;
+            }
+
+            // Not carrying: detect double-click on an occupied cell to pick up.
+            if (leftDown && hasCell)
+            {
+                bool isDouble = (Time.unscaledTime - lastLeftDownTime) <= doubleClickThreshold
+                                && coord == lastLeftDownCell;
+                lastLeftDownTime = Time.unscaledTime;
+                lastLeftDownCell = coord;
+
+                if (isDouble)
+                {
+                    var occupant = controller.GetOccupant(coord);
+                    if (occupant != null)
+                    {
+                        selectedItem = occupant;
+                        selectedItem.SetVisualHidden(true);
+                        // Kill any place-drag started by the first click of this pair.
+                        placeDragStart = null;
+                        marquee.Hide();
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         // Returns true if a remove drag is active this frame.

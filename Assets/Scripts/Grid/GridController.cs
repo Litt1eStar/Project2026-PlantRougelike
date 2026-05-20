@@ -27,8 +27,9 @@ namespace PlantRoguelike.Grid
         public float CellSize => cellSize;
         public Vector3 Origin => origin;
 
-        public event Action<Vector2Int, IGridPlaceable> OnPlaced;
-        public event Action<Vector2Int, IGridPlaceable> OnRemoved;
+        public event Action<Vector2Int, IGridPlaceable>             OnPlaced;
+        public event Action<Vector2Int, IGridPlaceable>             OnRemoved;
+        public event Action<Vector2Int, Vector2Int, IGridPlaceable> OnMoved;
 
         private void Awake()
         {
@@ -152,6 +153,65 @@ namespace PlantRoguelike.Grid
 
             item.OnPlaced(this, originCoord);
             OnPlaced?.Invoke(originCoord, item);
+            return true;
+        }
+
+        public bool CanMove(IGridPlaceable item, Vector2Int newOrigin)
+        {
+            if (item == null || item.Data == null) return false;
+            if (item.OccupantId == 0 || !occupants.ContainsKey(item.OccupantId)) return false;
+
+            var size = item.Data.size;
+            int myId = item.OccupantId;
+
+            for (int dy = 0; dy < size.y; dy++)
+            for (int dx = 0; dx < size.x; dx++)
+            {
+                var c = new Vector2Int(newOrigin.x + dx, newOrigin.y + dy);
+                if (!InBounds(c)) return false;
+
+                var cell = cells[Index(c)];
+                if (cell.occupantId != 0 && cell.occupantId != myId) return false;
+                if (!IsCellTypeAllowed(cell.type, item.Data.allowedCellTypes)) return false;
+            }
+            return true;
+        }
+
+        public bool TryMove(IGridPlaceable item, Vector2Int newOrigin)
+        {
+            if (!CanMove(item, newOrigin)) return false;
+            if (item.Origin == newOrigin) return true;
+
+            int myId = item.OccupantId;
+            var oldOrigin = item.Origin;
+            var size = item.Data.size;
+
+            // Free old cells owned by us.
+            for (int dy = 0; dy < size.y; dy++)
+            for (int dx = 0; dx < size.x; dx++)
+            {
+                var c = new Vector2Int(oldOrigin.x + dx, oldOrigin.y + dy);
+                if (!InBounds(c)) continue;
+                var cell = cells[Index(c)];
+                if (cell.occupantId == myId)
+                {
+                    cell.occupantId = 0;
+                    cells[Index(c)] = cell;
+                }
+            }
+
+            // Claim new cells.
+            for (int dy = 0; dy < size.y; dy++)
+            for (int dx = 0; dx < size.x; dx++)
+            {
+                var c = new Vector2Int(newOrigin.x + dx, newOrigin.y + dy);
+                var cell = cells[Index(c)];
+                cell.occupantId = myId;
+                cells[Index(c)] = cell;
+            }
+
+            item.OnMoved(this, newOrigin);
+            OnMoved?.Invoke(oldOrigin, newOrigin, item);
             return true;
         }
 

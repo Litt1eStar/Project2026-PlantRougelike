@@ -12,17 +12,33 @@ namespace PlantRoguelike.Grid
 
         public void OnPlaced(GridController grid, Vector2Int origin)
         {
-            Origin = origin;
-            transform.position = grid.FootprintCenterWorld(origin, data.size);
+            SetOrigin(grid, origin);
 
             if (data != null && data.prefab != null)
                 Instantiate(data.prefab, transform.position, Quaternion.identity, transform);
+        }
+
+        public void OnMoved(GridController grid, Vector2Int newOrigin)
+        {
+            SetOrigin(grid, newOrigin);
         }
 
         public void OnRemoved()
         {
             if (Application.isPlaying) Destroy(gameObject);
             else DestroyImmediate(gameObject);
+        }
+
+        public void SetVisualHidden(bool hidden)
+        {
+            foreach (var r in GetComponentsInChildren<Renderer>(true))
+                r.enabled = !hidden;
+        }
+
+        private void SetOrigin(GridController grid, Vector2Int origin)
+        {
+            Origin = origin;
+            transform.position = grid.FootprintCenterWorld(origin, data.size);
         }
     }
 }
