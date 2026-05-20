@@ -7,9 +7,16 @@ namespace PlantRoguelike.Grid
     public sealed class GridVisualizer : MonoBehaviour
     {
         [SerializeField] private Shader shader;
+        [SerializeField] private bool   showLines     = true;
         [SerializeField] private Color  lineColor     = new Color(1f, 1f, 1f, 0.4f);
         [Range(0.001f, 0.2f)]
         [SerializeField] private float  lineThickness = 0.04f;
+
+        public bool ShowLines
+        {
+            get => showLines;
+            set { showLines = value; Refresh(); }
+        }
 
         private GridController controller;
         private GameObject     quad;
@@ -80,6 +87,8 @@ namespace PlantRoguelike.Grid
         private void Refresh()
         {
             if (controller == null || quad == null || material == null) return;
+
+            if (renderer_ != null) renderer_.enabled = showLines;
 
             int   w  = controller.Width;
             int   h  = controller.Height;
