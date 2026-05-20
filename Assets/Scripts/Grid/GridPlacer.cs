@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace PlantRoguelike.Grid
@@ -5,8 +6,9 @@ namespace PlantRoguelike.Grid
     [RequireComponent(typeof(GridController))]
     public sealed class GridPlacer : MonoBehaviour
     {
-        [SerializeField] private Camera        aimCamera;
-        [SerializeField] private PlaceableData currentPlaceable;
+        [SerializeField] private Camera             aimCamera;
+        [SerializeField] private GridModeController modeController;
+        [SerializeField] private PlaceableData      currentPlaceable;
 
         [Header("Ghost")]
         [SerializeField] private Color validColor   = new Color(0.3f, 1f, 0.3f, 0.5f);
@@ -26,30 +28,56 @@ namespace PlantRoguelike.Grid
         private PlacementGhost    ghost;
         private MarqueeVisualizer marquee;
 
-        private Vector2Int?   placeDragStart;
-        private Vector2Int?   removeDragStart;
-        private IGridPlaceable selectedItem;
-        private float         lastLeftDownTime = -999f;
-        private Vector2Int    lastLeftDownCell;
+        private Vector2Int?    placeDragStart;
+        private Vector2Int?    removeDragStart;
+        private IGridPlaceable selectedItem;        // carried during move
+        private IGridPlaceable inspectedItem;       // selected in Selection mode
+        private float          lastLeftDownTime = -999f;
+        private Vector2Int     lastLeftDownCell;
+
+        // Fires when Selection-mode click changes the inspected item.
+        // null = nothing selected (e.g., clicked empty cell).
+        public event Action<IGridPlaceable> OnItemSelected;
 
         private void Awake()
         {
             controller = GetComponent<GridController>();
             if (aimCamera == null) aimCamera = Camera.main;
+            if (modeController == null) modeController = GetComponent<GridModeController>();
 
             ghost   = new PlacementGhost(controller, validColor, invalidColor);
             marquee = new MarqueeVisualizer(controller, marqueeYOffset);
         }
 
+        private void OnEnable()
+        {
+            if (modeController != null) modeController.OnModeChanged += HandleModeChanged;
+        }
+
         private void OnDisable()
+        {
+            if (modeController != null) modeController.OnModeChanged -= HandleModeChanged;
+            CancelActiveInteractions();
+            ghost?.Dispose();
+            marquee?.Dispose();
+        }
+
+        private void HandleModeChanged(GridInteractionMode _)
+        {
+            CancelActiveInteractions();
+        }
+
+        private void CancelActiveInteractions()
         {
             if (selectedItem != null)
             {
                 selectedItem.SetVisualHidden(false);
                 selectedItem = null;
             }
-            ghost?.Dispose();
-            marquee?.Dispose();
+            placeDragStart = null;
+            removeDragStart = null;
+            ghost?.Hide();
+            marquee?.Hide();
         }
 
         private void Update()
@@ -63,7 +91,18 @@ namespace PlantRoguelike.Grid
 
             bool hasCell = TryGetHoveredCell(out var coord);
 
-            // Move (MMB select-then-place) takes top priority. While carrying an
+            var mode = modeController != null ? modeController.Mode : GridInteractionMode.Building;
+
+            if (mode == GridInteractionMode.Selection)
+            {
+                ghost.Hide();
+                marquee.Hide();
+                UpdateSelection(hasCell, coord);
+                return;
+            }
+
+            // Building / Planting: place, remove, move.
+            // Move (double-LMB pickup) takes top priority. While carrying an
             // item, all other inputs are suppressed.
             if (UpdateMove(hasCell, coord))
             {
@@ -89,6 +128,44 @@ namespace PlantRoguelike.Grid
                 UpdatePlaceDrag(hasCell, coord);
             else
                 UpdateSingleClickPlace(hasCell, coord);
+        }
+
+        // Selection Mode: LMB picks the IGridPlaceable under the cursor via a
+        // physics raycast so visuals that overflow their cell footprint still
+        // select correctly. LMB on empty (no entity hit) deselects.
+        private void UpdateSelection(bool hasCell, Vector2Int coord)
+        {
+            if (!Input.GetMouseButtonDown(0)) return;
+
+            var ray = aimCamera.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out var hit, 1000f))
+            {
+                var item = hit.collider.GetComponentInParent<IGridPlaceable>();
+                if (item != null)
+                {
+                    SetInspected(item);
+                    return;
+                }
+            }
+
+            SetInspected(null);
+        }
+
+        private void SetInspected(IGridPlaceable item)
+        {
+            if (inspectedItem == item) return;
+            inspectedItem = item;
+
+            if (item != null)
+            {
+                var name = item.Data != null ? (item.Data.id ?? item.Data.name) : "<null data>";
+                Debug.Log($"[GridPlacer] Selected {name} at {item.Origin}", item as UnityEngine.Object);
+            }
+            else
+            {
+                Debug.Log("[GridPlacer] Selection cleared");
+            }
+            OnItemSelected?.Invoke(item);
         }
 
         // Returns true if a move flow is active this frame (pick or carrying).
