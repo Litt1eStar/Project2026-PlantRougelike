@@ -15,6 +15,8 @@ namespace PlantRoguelike.Grid
         [Header("Selection Box")]
         [SerializeField] private Color selectionValidColor   = new Color(0.3f, 0.7f, 1f, 0.35f);
         [SerializeField] private Color selectionInvalidColor = new Color(1f, 0.3f, 0.3f, 0.35f);
+        [SerializeField] private Color removeValidColor      = new Color(1f, 0.6f, 0.2f, 0.35f);
+        [SerializeField] private Color removeInvalidColor    = new Color(0.5f, 0.5f, 0.5f, 0.25f);
         [SerializeField] private float selectionYOffset      = 0.02f;
 
         private GridController controller;
@@ -22,7 +24,8 @@ namespace PlantRoguelike.Grid
         private Material       ghostMaterial;
         private PlaceableData  ghostFor;
 
-        private Vector2Int? dragStart;
+        private Vector2Int? placeDragStart;
+        private Vector2Int? removeDragStart;
 
         private GameObject selectionQuad;
         private Material   selectionMaterial;
@@ -51,9 +54,12 @@ namespace PlantRoguelike.Grid
             bool hasCell = TryGetHoveredCell(out var coord);
             bool isOneByOne = currentPlaceable.size == Vector2Int.one;
 
-            // Right-click remove (only when not dragging).
-            if (!dragStart.HasValue && hasCell && Input.GetMouseButtonDown(1))
-                controller.Remove(coord);
+            // Right-button drag = remove rect. Mutually exclusive with place drag.
+            if (placeDragStart == null && UpdateRemoveDrag(hasCell, coord))
+            {
+                if (ghost != null) ghost.SetActive(false);
+                return;
+            }
 
             if (isOneByOne)
             {
@@ -65,36 +71,64 @@ namespace PlantRoguelike.Grid
             }
         }
 
+        // Returns true if a remove drag is active this frame (suppress place handling).
+        private bool UpdateRemoveDrag(bool hasCell, Vector2Int coord)
+        {
+            if (Input.GetMouseButtonDown(1) && hasCell)
+                removeDragStart = coord;
+
+            if (removeDragStart.HasValue && Input.GetMouseButton(1))
+            {
+                var end = hasCell ? coord : removeDragStart.Value;
+                var (min, max) = RectBounds(removeDragStart.Value, end);
+                bool anyOccupied = RectHasOccupant(min, max);
+                ShowSelectionQuad(min, max, anyOccupied ? removeValidColor : removeInvalidColor);
+                return true;
+            }
+
+            if (removeDragStart.HasValue && Input.GetMouseButtonUp(1))
+            {
+                var end = hasCell ? coord : removeDragStart.Value;
+                var (min, max) = RectBounds(removeDragStart.Value, end);
+                if (RectHasOccupant(min, max)) RemoveRect(min, max);
+                removeDragStart = null;
+                HideSelectionQuad();
+                return true;
+            }
+
+            return false;
+        }
+
         private void UpdateOneByOne(bool hasCell, Vector2Int coord)
         {
             if (Input.GetMouseButtonDown(0) && hasCell)
             {
-                dragStart = coord;
+                placeDragStart = coord;
             }
 
-            if (dragStart.HasValue && Input.GetMouseButton(0))
+            if (placeDragStart.HasValue && Input.GetMouseButton(0))
             {
                 if (ghost != null) ghost.SetActive(false);
 
-                var end = hasCell ? coord : dragStart.Value;
-                var (min, max) = RectBounds(dragStart.Value, end);
+                var end = hasCell ? coord : placeDragStart.Value;
+                var (min, max) = RectBounds(placeDragStart.Value, end);
                 bool allFree = IsRectAllPlaceable(min, max);
-                ShowSelectionQuad(min, max, allFree);
+                ShowSelectionQuad(min, max, allFree ? selectionValidColor : selectionInvalidColor);
                 return;
             }
 
-            if (dragStart.HasValue && Input.GetMouseButtonUp(0))
+            if (placeDragStart.HasValue && Input.GetMouseButtonUp(0))
             {
-                var end = hasCell ? coord : dragStart.Value;
-                var (min, max) = RectBounds(dragStart.Value, end);
+                var end = hasCell ? coord : placeDragStart.Value;
+                var (min, max) = RectBounds(placeDragStart.Value, end);
                 if (IsRectAllPlaceable(min, max))
                     PlaceRect(min, max);
-                dragStart = null;
+                placeDragStart = null;
                 HideSelectionQuad();
             }
 
             // Not dragging: show single-cell ghost.
-            if (!dragStart.HasValue)
+            if (!placeDragStart.HasValue)
             {
                 if (!hasCell)
                 {
@@ -109,7 +143,7 @@ namespace PlantRoguelike.Grid
         private void UpdateMultiCell(bool hasCell, Vector2Int coord)
         {
             HideSelectionQuad();
-            dragStart = null;
+            placeDragStart = null;
 
             if (!hasCell)
             {
@@ -149,6 +183,29 @@ namespace PlantRoguelike.Grid
                 var c = new Vector2Int(x, y);
                 if (controller.CanPlace(currentPlaceable, c))
                     Place(c);
+            }
+        }
+
+        private bool RectHasOccupant(Vector2Int min, Vector2Int max)
+        {
+            for (int y = min.y; y <= max.y; y++)
+            for (int x = min.x; x <= max.x; x++)
+                if (controller.IsOccupied(new Vector2Int(x, y)))
+                    return true;
+            return false;
+        }
+
+        // Remove every occupant whose footprint intersects the rect. A multi-cell
+        // occupant is removed once; subsequent cells of its footprint become empty
+        // and are skipped.
+        private void RemoveRect(Vector2Int min, Vector2Int max)
+        {
+            for (int y = min.y; y <= max.y; y++)
+            for (int x = min.x; x <= max.x; x++)
+            {
+                var c = new Vector2Int(x, y);
+                if (controller.IsOccupied(c))
+                    controller.Remove(c);
             }
         }
 
@@ -267,7 +324,7 @@ namespace PlantRoguelike.Grid
             mr.receiveShadows = false;
         }
 
-        private void ShowSelectionQuad(Vector2Int min, Vector2Int max, bool valid)
+        private void ShowSelectionQuad(Vector2Int min, Vector2Int max, Color color)
         {
             EnsureSelectionQuad();
 
@@ -282,7 +339,7 @@ namespace PlantRoguelike.Grid
                 origin.z + min.y * cs);
             selectionQuad.transform.localScale = new Vector3(w, 1f, h);
 
-            selectionMaterial.SetColor("_BaseColor", valid ? selectionValidColor : selectionInvalidColor);
+            selectionMaterial.SetColor("_BaseColor", color);
             selectionQuad.SetActive(true);
         }
 
