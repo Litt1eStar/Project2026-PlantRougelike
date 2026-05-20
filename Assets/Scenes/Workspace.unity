@@ -166,8 +166,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1e1d715e4457f0749a01b750fa973921, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlantRoguelike.Grid.GridController
-  width: 100
-  height: 100
+  width: 1000
+  height: 1000
   cellSize: 1
   originTransform: {fileID: 0}
 --- !u!4 &73198504
@@ -201,6 +201,11 @@ MonoBehaviour:
   currentPlaceable: {fileID: 11400000, guid: e3d6ae6c02fe5f44a94d844cc01eb953, type: 2}
   validColor: {r: 0.3, g: 1, b: 0.3, a: 0.5}
   invalidColor: {r: 1, g: 0.3, b: 0.3, a: 0.5}
+  selectionValidColor: {r: 0.3, g: 0.7, b: 1, a: 0.35}
+  selectionInvalidColor: {r: 1, g: 0.3, b: 0.3, a: 0.35}
+  removeValidColor: {r: 1, g: 0.6, b: 0.2, a: 0.35}
+  removeInvalidColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.25}
+  selectionYOffset: 0.15
 --- !u!1 &242303688
 GameObject:
   m_ObjectHideFlags: 0
