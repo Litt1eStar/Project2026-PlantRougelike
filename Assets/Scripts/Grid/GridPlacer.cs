@@ -16,6 +16,7 @@ namespace PlantRoguelike.Grid
         private GameObject     ghost;
         private Material       ghostMaterial;
         private PlaceableData  ghostFor;
+        private Vector2Int?    lastDragCell;
 
         private void Awake()
         {
@@ -46,10 +47,47 @@ namespace PlantRoguelike.Grid
             bool canPlace = controller.CanPlace(currentPlaceable, coord);
             UpdateGhost(coord, canPlace);
 
-            if (Input.GetMouseButtonDown(0) && canPlace)
-                Place(coord);
-            else if (Input.GetMouseButtonDown(1))
+            bool isOneByOne = currentPlaceable.size == Vector2Int.one;
+
+            if (Input.GetMouseButtonDown(0))
+            {
+                if (canPlace) Place(coord);
+                if (isOneByOne) lastDragCell = coord;
+            }
+            else if (isOneByOne && Input.GetMouseButton(0) && lastDragCell.HasValue && coord != lastDragCell.Value)
+            {
+                PaintLine(lastDragCell.Value, coord);
+                lastDragCell = coord;
+            }
+
+            if (Input.GetMouseButtonUp(0))
+                lastDragCell = null;
+
+            if (Input.GetMouseButtonDown(1))
                 controller.Remove(coord);
+        }
+
+        // Bresenham line; places at every cell along the line, EXCLUDING the
+        // starting cell (already placed on the previous frame or mouse-down).
+        // Cells where CanPlace fails are skipped silently.
+        private void PaintLine(Vector2Int from, Vector2Int to)
+        {
+            int x0 = from.x, y0 = from.y;
+            int x1 = to.x,   y1 = to.y;
+            int dx =  Mathf.Abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+            int dy = -Mathf.Abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+            int err = dx + dy;
+
+            while (x0 != x1 || y0 != y1)
+            {
+                int e2 = 2 * err;
+                if (e2 >= dy) { err += dy; x0 += sx; }
+                if (e2 <= dx) { err += dx; y0 += sy; }
+
+                var c = new Vector2Int(x0, y0);
+                if (controller.CanPlace(currentPlaceable, c))
+                    Place(c);
+            }
         }
 
         private bool TryGetHoveredCell(out Vector2Int coord)
