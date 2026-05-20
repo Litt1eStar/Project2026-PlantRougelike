@@ -13,7 +13,6 @@ MonoBehaviour:
   m_Name: TestPlaceableData
   m_EditorClassIdentifier: Assembly-CSharp::PlantRoguelike.Grid.TestPlaceableData
   id: test_cube
-  footprint:
-  - {x: 0, y: 0}
+  size: {x: 2, y: 2}
   allowedCellTypes: 0001
-  prefab: {fileID: 2555183277131628019, guid: 384cb37c3005a8640beca82bc386246f, type: 3}
+  prefab: {fileID: 3587295096144074150, guid: 8625015171173bc48a7d7204fef3209b, type: 3}

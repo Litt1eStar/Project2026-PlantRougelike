@@ -72,6 +72,11 @@ namespace PlantRoguelike.Grid
                 Mathf.FloorToInt((worldPos.x - origin.x) / cellSize),
                 Mathf.FloorToInt((worldPos.z - origin.z) / cellSize));
 
+        public Vector3 FootprintCenterWorld(Vector2Int originCoord, Vector2Int size) =>
+            origin + new Vector3((originCoord.x + size.x * 0.5f) * cellSize,
+                                 0f,
+                                 (originCoord.y + size.y * 0.5f) * cellSize);
+
         // ---------- Queries ----------
 
         public GridCell GetCell(Vector2Int coord)
@@ -97,11 +102,14 @@ namespace PlantRoguelike.Grid
 
         public bool CanPlace(PlaceableData data, Vector2Int originCoord)
         {
-            if (data == null || data.footprint == null || data.footprint.Length == 0) return false;
+            if (data == null) return false;
+            var size = data.size;
+            if (size.x <= 0 || size.y <= 0) return false;
 
-            for (int i = 0; i < data.footprint.Length; i++)
+            for (int dy = 0; dy < size.y; dy++)
+            for (int dx = 0; dx < size.x; dx++)
             {
-                var c = originCoord + data.footprint[i];
+                var c = new Vector2Int(originCoord.x + dx, originCoord.y + dy);
                 if (!InBounds(c)) return false;
 
                 var cell = cells[Index(c)];
@@ -113,9 +121,11 @@ namespace PlantRoguelike.Grid
 
         public IReadOnlyList<Vector2Int> GetFootprint(PlaceableData data, Vector2Int originCoord)
         {
-            var list = new List<Vector2Int>(data.footprint.Length);
-            for (int i = 0; i < data.footprint.Length; i++)
-                list.Add(originCoord + data.footprint[i]);
+            var size = data.size;
+            var list = new List<Vector2Int>(size.x * size.y);
+            for (int dy = 0; dy < size.y; dy++)
+                for (int dx = 0; dx < size.x; dx++)
+                    list.Add(new Vector2Int(originCoord.x + dx, originCoord.y + dy));
             return list;
         }
 
@@ -130,10 +140,11 @@ namespace PlantRoguelike.Grid
             item.OccupantId = id;
             occupants[id] = item;
 
-            var fp = item.Data.footprint;
-            for (int i = 0; i < fp.Length; i++)
+            var size = item.Data.size;
+            for (int dy = 0; dy < size.y; dy++)
+            for (int dx = 0; dx < size.x; dx++)
             {
-                var c = originCoord + fp[i];
+                var c = new Vector2Int(originCoord.x + dx, originCoord.y + dy);
                 var cell = cells[Index(c)];
                 cell.occupantId = id;
                 cells[Index(c)] = cell;
@@ -152,10 +163,11 @@ namespace PlantRoguelike.Grid
             if (!occupants.TryGetValue(id, out var item)) return false;
 
             var origin = item.Origin;
-            var fp = item.Data.footprint;
-            for (int i = 0; i < fp.Length; i++)
+            var size   = item.Data.size;
+            for (int dy = 0; dy < size.y; dy++)
+            for (int dx = 0; dx < size.x; dx++)
             {
-                var c = origin + fp[i];
+                var c = new Vector2Int(origin.x + dx, origin.y + dy);
                 if (!InBounds(c)) continue;
                 var cell = cells[Index(c)];
                 if (cell.occupantId == id)

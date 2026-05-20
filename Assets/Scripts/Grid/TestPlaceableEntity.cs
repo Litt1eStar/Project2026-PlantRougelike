@@ -13,7 +13,7 @@ namespace PlantRoguelike.Grid
         public void OnPlaced(GridController grid, Vector2Int origin)
         {
             Origin = origin;
-            transform.position = grid.ToWorld(origin);
+            transform.position = grid.FootprintCenterWorld(origin, data.size);
 
             if (data != null && data.prefab != null)
                 Instantiate(data.prefab, transform.position, Quaternion.identity, transform);

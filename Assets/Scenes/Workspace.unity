@@ -151,6 +151,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlantRoguelike.Grid.GridVisualizer
   shader: {fileID: 0}
+  showLines: 1
   lineColor: {r: 1, g: 1, b: 1, a: 0.4}
   lineThickness: 0.001
 --- !u!114 &73198503

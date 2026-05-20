@@ -15,7 +15,6 @@ namespace PlantRoguelike.Grid
         private GridController controller;
         private GameObject     ghost;
         private Material       ghostMaterial;
-        private Renderer[]     ghostRenderers;
         private PlaceableData  ghostFor;
 
         private void Awake()
@@ -86,32 +85,11 @@ namespace PlantRoguelike.Grid
             DestroyGhost();
             if (currentPlaceable == null || currentPlaceable.prefab == null) return;
 
+            ghostMaterial = CreateGhostMaterial();
             ghost = Instantiate(currentPlaceable.prefab);
             ghost.name = "PlacementGhost";
             ghost.hideFlags = HideFlags.HideAndDontSave;
-
-            foreach (var col in ghost.GetComponentsInChildren<Collider>(true))
-                col.enabled = false;
-
-            ghostMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-            ghostMaterial.SetFloat("_Surface", 1f);   // 0 opaque, 1 transparent
-            ghostMaterial.SetFloat("_Blend",   0f);   // 0 alpha
-            ghostMaterial.SetOverrideTag("RenderType", "Transparent");
-            ghostMaterial.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
-            ghostMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            ghostMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            ghostMaterial.SetInt("_ZWrite", 0);
-            ghostMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-
-            ghostRenderers = ghost.GetComponentsInChildren<Renderer>(true);
-            foreach (var r in ghostRenderers)
-            {
-                var mats = new Material[r.sharedMaterials.Length];
-                for (int i = 0; i < mats.Length; i++) mats[i] = ghostMaterial;
-                r.sharedMaterials = mats;
-                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                r.receiveShadows = false;
-            }
+            ApplyGhostMaterial(ghost);
 
             ghostFor = currentPlaceable;
         }
@@ -120,8 +98,37 @@ namespace PlantRoguelike.Grid
         {
             if (ghost == null) return;
             ghost.SetActive(true);
-            ghost.transform.position = controller.ToWorld(coord);
+            ghost.transform.position = controller.FootprintCenterWorld(coord, currentPlaceable.size);
             ghostMaterial.SetColor("_BaseColor", valid ? validColor : invalidColor);
+        }
+
+        private static Material CreateGhostMaterial()
+        {
+            var mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            mat.SetFloat("_Surface", 1f);
+            mat.SetFloat("_Blend",   0f);
+            mat.SetOverrideTag("RenderType", "Transparent");
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            return mat;
+        }
+
+        private void ApplyGhostMaterial(GameObject root)
+        {
+            foreach (var col in root.GetComponentsInChildren<Collider>(true))
+                col.enabled = false;
+
+            foreach (var r in root.GetComponentsInChildren<Renderer>(true))
+            {
+                var mats = new Material[r.sharedMaterials.Length];
+                for (int i = 0; i < mats.Length; i++) mats[i] = ghostMaterial;
+                r.sharedMaterials = mats;
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                r.receiveShadows = false;
+            }
         }
 
         private void DestroyGhost()
@@ -138,7 +145,6 @@ namespace PlantRoguelike.Grid
                 else DestroyImmediate(ghostMaterial);
                 ghostMaterial = null;
             }
-            ghostRenderers = null;
             ghostFor = null;
         }
     }
