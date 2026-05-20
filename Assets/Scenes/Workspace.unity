@@ -130,6 +130,7 @@ GameObject:
   - component: {fileID: 73198504}
   - component: {fileID: 73198503}
   - component: {fileID: 73198502}
+  - component: {fileID: 73198505}
   m_Layer: 0
   m_Name: Grid
   m_TagString: Untagged
@@ -151,7 +152,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlantRoguelike.Grid.GridVisualizer
   shader: {fileID: 0}
   lineColor: {r: 1, g: 1, b: 1, a: 0.4}
-  lineThickness: 0.04
+  lineThickness: 0.001
 --- !u!114 &73198503
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -183,6 +184,22 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &73198505
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 73198501}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 477378410af0525478723a4fa382a2d6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlantRoguelike.Grid.GridPlacer
+  aimCamera: {fileID: 791930548}
+  currentPlaceable: {fileID: 11400000, guid: e3d6ae6c02fe5f44a94d844cc01eb953, type: 2}
+  validColor: {r: 0.3, g: 1, b: 0.3, a: 0.5}
+  invalidColor: {r: 1, g: 0.3, b: 0.3, a: 0.5}
 --- !u!1 &242303688
 GameObject:
   m_ObjectHideFlags: 0
