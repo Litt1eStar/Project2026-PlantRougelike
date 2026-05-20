@@ -24,9 +24,14 @@ namespace PlantRoguelike.Grid
         [Header("Move")]
         [SerializeField] private float doubleClickThreshold = 0.3f;
 
-        private GridController    controller;
-        private PlacementGhost    ghost;
-        private MarqueeVisualizer marquee;
+        [Header("Selection Highlight")]
+        [SerializeField] private Color selectionOutlineColor = new Color(1f, 0.85f, 0.2f, 1f);
+        [SerializeField] private float selectionOutlineWidth = 0.03f;
+
+        private GridController      controller;
+        private PlacementGhost      ghost;
+        private MarqueeVisualizer   marquee;
+        private SelectionHighlighter highlighter;
 
         private Vector2Int?    placeDragStart;
         private Vector2Int?    removeDragStart;
@@ -45,8 +50,9 @@ namespace PlantRoguelike.Grid
             if (aimCamera == null) aimCamera = Camera.main;
             if (modeController == null) modeController = GetComponent<GridModeController>();
 
-            ghost   = new PlacementGhost(controller, validColor, invalidColor);
-            marquee = new MarqueeVisualizer(controller, marqueeYOffset);
+            ghost       = new PlacementGhost(controller, validColor, invalidColor);
+            marquee     = new MarqueeVisualizer(controller, marqueeYOffset);
+            highlighter = new SelectionHighlighter(selectionOutlineColor, selectionOutlineWidth);
         }
 
         private void OnEnable()
@@ -58,13 +64,16 @@ namespace PlantRoguelike.Grid
         {
             if (modeController != null) modeController.OnModeChanged -= HandleModeChanged;
             CancelActiveInteractions();
+            highlighter?.Dispose();
             ghost?.Dispose();
             marquee?.Dispose();
         }
 
-        private void HandleModeChanged(GridInteractionMode _)
+        private void HandleModeChanged(GridInteractionMode mode)
         {
             CancelActiveInteractions();
+            // Selection feedback only makes sense in Selection mode.
+            if (mode != GridInteractionMode.Selection) SetInspected(null);
         }
 
         private void CancelActiveInteractions()
@@ -155,6 +164,7 @@ namespace PlantRoguelike.Grid
         {
             if (inspectedItem == item) return;
             inspectedItem = item;
+            highlighter?.Set(item);
 
             if (item != null)
             {
